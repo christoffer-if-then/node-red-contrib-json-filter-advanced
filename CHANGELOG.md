@@ -5,6 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.28] - 2025-07-16
+
+### Added
+- GitHub repository integration with proper URLs and issue tracking
+- Complete documentation package ready for Node-RED catalog submission
+- Git version control with proper .gitignore file
+
+### Changed
+- Updated node display label to "JSON Filter Advanced" with proper capitalization
+- Enhanced package.json with GitHub repository links
+- Updated author information and contact details
+
+### Fixed
+- Improved professional presentation for catalog submission
+- Better project structure for open source collaboration
+
+## [1.0.27] - 2025-07-16
+
+### Added
+- Initial GitHub repository setup
+- Enhanced catalog submission documentation
+
+### Changed
+- Updated package metadata for publication readiness
+
 ## [1.0.26] - 2024-01-16
 
 ### Changed

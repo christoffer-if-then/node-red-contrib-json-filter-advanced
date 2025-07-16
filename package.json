@@ -1,6 +1,6 @@
 {
   "name": "node-red-contrib-json-filter-advanced",
-  "version": "1.0.27",
+  "version": "1.0.28",
   "description": "A Node-RED node for interactive JSON filtering with selectable output structure and template editor.",
   "main": "json-filter-advanced.js",
   "keywords": [
