@@ -1,0 +1,57 @@
+{
+  "name": "node-red-contrib-json-filter-advanced",
+  "version": "1.0.27",
+  "description": "A Node-RED node for interactive JSON filtering with selectable output structure and template editor.",
+  "main": "json-filter-advanced.js",
+  "keywords": [
+    "node-red",
+    "json",
+    "filter",
+    "interactive",
+    "tree",
+    "template",
+    "editor",
+    "data",
+    "extraction",
+    "transformation",
+    "parsing"
+  ],
+  "homepage": "https://github.com/christoffer-if-then/node-red-contrib-json-filter-advanced#readme",
+  "bugs": {
+    "url": "https://github.com/christoffer-if-then/node-red-contrib-json-filter-advanced/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/christoffer-if-then/node-red-contrib-json-filter-advanced.git"
+  },
+  "node-red": {
+    "version": ">=2.0.0",
+    "nodes": {
+      "json-filter-advanced": "json-filter-advanced.js"
+    }
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "dependencies": {
+    "lodash": "^4.17.21"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": {
+    "name": "Christoffer Larsson",
+    "email": "christoffer@if-then.se"
+  },
+  "license": "MIT",
+  "files": [
+    "json-filter-advanced.js",
+    "json-filter-advanced.html",
+    "lib/",
+    "icons/",
+    "LICENSE",
+    "README.md",
+    "examples/"
+  ]
+}

@@ -1,0 +1,1130 @@
+<script type="text/javascript">
+(function() {
+    'use strict';
+    
+    // ===== CONFIGURATION =====
+    const CONFIG = {
+        MAX_JSON_SIZE: 1000000,  // 1MB limit
+        MAX_TREE_NODES: 1000,    // Performance limit
+        DEBOUNCE_DELAY: 150      // ms
+    };
+    
+    // ===== UTILITIES =====
+    const Utils = {
+        escapeHtml: function(text) {
+            if (typeof text !== 'string') return text;
+            const map = {
+                '&': '&amp;', '<': '&lt;', '>': '&gt;', 
+                '"': '&quot;', "'": '&#039;'
+            };
+            return text.replace(/[&<>"']/g, function(m) { return map[m]; });
+        },
+        
+        createSafeNodeId: function(path) {
+            return 'node-' + path.replace(/[^a-zA-Z0-9]/g, '-');
+        },
+        
+        fetchLatestMsg: function(nodeId, property, cb) {
+            const url = 'json-filter-advanced/latest/' + nodeId + '?property=' + encodeURIComponent(property || 'payload');
+            $.get(url, function(data) {
+                cb(data.latestMsg);
+            }).fail(function() {
+                cb(null);
+            });
+        },
+        
+        validateJsonSize: function(text) {
+            return text.length <= CONFIG.MAX_JSON_SIZE;
+        },
+        
+        validateTreeSize: function(nodeCount) {
+            return nodeCount <= CONFIG.MAX_TREE_NODES;
+        }
+    };
+    
+    // ===== TREE BUILDER =====
+    const TreeBuilder = {
+        buildJsonTree: function(obj, path = '') {
+            const tree = {};
+            
+            if (typeof obj === 'object' && obj !== null) {
+                Object.keys(obj).forEach(function(key) {
+                    const value = obj[key];
+                    const currentPath = path ? path + '.' + key : key;
+                    const isObject = typeof value === 'object' && value !== null;
+                    
+                    tree[key] = {
+                        _isLeaf: !isObject,
+                        _path: currentPath,
+                        _value: value,
+                        _children: isObject ? TreeBuilder.buildJsonTree(value, currentPath) : {}
+                    };
+                });
+            }
+            
+            return tree;
+        },
+        
+        countNodes: function(tree) {
+            let count = 0;
+            Object.keys(tree).forEach(function(key) {
+                const node = tree[key];
+                count++;
+                if (Object.keys(node._children).length > 0) {
+                    count += TreeBuilder.countNodes(node._children);
+                }
+            });
+            return count;
+        }
+    };
+    
+    // ===== TREE RENDERER =====
+    const TreeRenderer = {
+        renderJsonTree: function(tree, $container) {
+            const treeHtml = TreeRenderer.renderTreeNodes(tree);
+            const totalNodes = TreeBuilder.countNodes(tree);
+            
+            $container.html(`
+                <div class="tree-controls">
+                    <div class="tree-controls-left">
+                        <button type="button" class="tree-btn" id="expand-all">
+                            <i class="fa fa-expand"></i> Expand All
+                        </button>
+                        <button type="button" class="tree-btn" id="collapse-all">
+                            <i class="fa fa-compress"></i> Collapse All
+                        </button>
+                        <button type="button" class="tree-btn" id="select-all">
+                            <i class="fa fa-check-square-o"></i> Select All
+                        </button>
+                        <button type="button" class="tree-btn" id="select-none">
+                            <i class="fa fa-square-o"></i> Select None
+                        </button>
+                    </div>
+                    <div class="tree-controls-right">
+                        <span class="tree-stats">0/${totalNodes} selected</span>
+                    </div>
+                </div>
+                <div class="variable-tree" id="json-tree-content">
+                    ${treeHtml}
+                </div>
+            `);
+        },
+        
+        renderTreeNodes: function(tree, level = 0, parentPath = '', ancestorLines = []) {
+            let html = '';
+            const entries = Object.keys(tree).sort();
+            
+            entries.forEach(function(key, index) {
+                const node = tree[key];
+                const isLastChild = index === entries.length - 1;
+                const hasChildren = Object.keys(node._children).length > 0;
+                const safeNodeId = Utils.createSafeNodeId(node._path);
+                const escapedKey = Utils.escapeHtml(key);
+                const escapedPath = Utils.escapeHtml(node._path);
+                
+                html += `<div class="tree-node" data-path="${escapedPath}" data-level="${level}">`;
+                html += '<div class="tree-node-content">';
+                
+                // Indentation lines
+                for (let i = 0; i < level; i++) {
+                    const classes = !ancestorLines[i] ? 'tree-indent' : 'tree-indent no-line';
+                    html += `<span class="${classes}"></span>`;
+                }
+                
+                if (hasChildren) {
+                    html += `<span class="tree-toggle" data-target="${safeNodeId}-children">
+                        <i class="fa fa-caret-right tree-icon"></i>
+                    </span>
+                    <input type="checkbox" class="tree-checkbox parent-checkbox" id="${safeNodeId}" data-path="${escapedPath}">
+                    <label for="${safeNodeId}" class="tree-label branch-label">
+                        <span class="tree-label-text" title="${escapedPath}">${escapedKey}</span>
+                    </label>`;
+                } else {
+                    const valueType = Utils.escapeHtml(Array.isArray(node._value) ? 'array' : typeof node._value);
+                    html += `<span class="tree-toggle empty"></span>
+                    <input type="checkbox" class="tree-checkbox leaf-checkbox" id="${safeNodeId}" data-path="${escapedPath}">
+                    <label for="${safeNodeId}" class="tree-label variable-label" title="${escapedPath}">
+                        <span class="tree-label-text">${escapedKey}</span>
+                        <span class="variable-info-inline">
+                            <span class="variable-type">${valueType}</span>
+                        </span>
+                    </label>`;
+                }
+                
+                html += '</div>';
+                
+                if (hasChildren) {
+                    html += `<div class="tree-children" id="${safeNodeId}-children" style="display: none;">`;
+                    const newAncestorLines = ancestorLines.slice();
+                    newAncestorLines[level] = isLastChild;
+                    html += TreeRenderer.renderTreeNodes(node._children, level + 1, node._path, newAncestorLines);
+                    html += '</div>';
+                }
+                
+                html += '</div>';
+            });
+            
+            return html;
+        }
+    };
+    
+    // ===== TREE CONTROLLER =====
+    const TreeController = {
+        init: function(node, $container, $selected) {
+            this.node = node;
+            this.$container = $container;
+            this.$selected = $selected;
+            this.updateTimeout = null;
+            this.bindEvents();
+        },
+        
+        bindEvents: function() {
+            const self = this;
+            
+            // Toggle expand/collapse
+            $(document).off('click', '.tree-toggle').on('click', '.tree-toggle', function() {
+                const target = $(this).data('target');
+                const $children = $('#' + target);
+                const $icon = $(this).find('.tree-icon');
+                
+                if ($children.is(':visible')) {
+                    $children.hide();
+                    $icon.removeClass('fa-caret-down').addClass('fa-caret-right');
+                } else {
+                    $children.show();
+                    $icon.removeClass('fa-caret-right').addClass('fa-caret-down');
+                }
+            });
+            
+            // Checkbox changes
+            $(document).off('change', '.tree-checkbox').on('change', '.tree-checkbox', function() {
+                const $checkbox = $(this);
+                const path = $checkbox.data('path');
+                const isChecked = $checkbox.prop('checked');
+                
+                if (isChecked) {
+                    self.selectParentPaths(path);
+                    self.selectChildPaths(path);
+                } else {
+                    self.deselectChildPaths(path);
+                }
+                
+                self.updateSelectionCount();
+                self.updateSelectedPaths();
+            });
+            
+            // Control buttons
+            $('#expand-all').off('click').on('click', function() {
+                $('.tree-children').show();
+                $('.tree-icon').removeClass('fa-caret-right').addClass('fa-caret-down');
+            });
+            
+            $('#collapse-all').off('click').on('click', function() {
+                $('.tree-children').hide();
+                $('.tree-icon').removeClass('fa-caret-down').addClass('fa-caret-right');
+            });
+            
+            $('#select-all').off('click').on('click', function() {
+                $('.tree-checkbox').prop('checked', true);
+                self.updateSelectionCount();
+                self.updateSelectedPaths();
+            });
+            
+            $('#select-none').off('click').on('click', function() {
+                $('.tree-checkbox').prop('checked', false);
+                self.updateSelectionCount();
+                self.updateSelectedPaths();
+            });
+        },
+        
+        selectParentPaths: function(path) {
+            const pathParts = path.split('.');
+            let currentPath = '';
+            
+            for (let i = 0; i < pathParts.length; i++) {
+                currentPath += (i > 0 ? '.' : '') + pathParts[i];
+                const $parentCheckbox = $('[data-path="' + currentPath + '"]');
+                if ($parentCheckbox.length > 0) {
+                    $parentCheckbox.prop('checked', true);
+                }
+            }
+        },
+        
+        deselectChildPaths: function(path) {
+            $('[data-path^="' + path + '."]').prop('checked', false);
+        },
+        
+        selectChildPaths: function(path) {
+            $('[data-path^="' + path + '."]').prop('checked', true);
+        },
+        
+        updateSelectionCount: function() {
+            const selectedCount = $('.tree-checkbox:checked').length;
+            const totalCount = $('.tree-checkbox').length;
+            $('.tree-stats').text(selectedCount + '/' + totalCount + ' selected');
+        },
+        
+        updateSelectedPaths: function() {
+            const self = this;
+            if (this.updateTimeout) {
+                clearTimeout(this.updateTimeout);
+            }
+            this.updateTimeout = setTimeout(function() {
+                const selected = [];
+                $('.leaf-checkbox:checked').each(function() {
+                    const path = $(this).data('path');
+                    if (path) {
+                        selected.push(path);
+                    }
+                });
+                console.log('updateSelectedPaths - selected leaf paths:', selected);
+                self.$selected.val(JSON.stringify(selected));
+            }, CONFIG.DEBOUNCE_DELAY);
+        },
+        
+        restoreSelections: function() {
+            const self = this;
+            if (this.node.selectedPaths && Array.isArray(this.node.selectedPaths)) {
+                this.node.selectedPaths.forEach(function(path) {
+                    const $checkbox = self.$container.find('[data-path="' + path + '"]');
+                    if ($checkbox.length > 0) {
+                        $checkbox.prop('checked', true);
+                        self.selectParentPaths(path);
+                    }
+                });
+                this.$selected.val(JSON.stringify(this.node.selectedPaths));
+                this.updateSelectionCount();
+            }
+        }
+    };
+    
+    // ===== DATA MANAGER =====
+    const DataManager = {
+        init: function(node, $container, treeController) {
+            this.node = node;
+            this.$container = $container;
+            this.treeController = treeController;
+        },
+        
+        buildTreeFromData: function(data) {
+            try {
+                if (!data || (typeof data !== 'object' && !Array.isArray(data))) {
+                    this.$container.html('<div class="no-message">Invalid data for tree building.</div>');
+                    return;
+                }
+                
+                const tree = TreeBuilder.buildJsonTree(data);
+                const totalNodes = TreeBuilder.countNodes(tree);
+                
+                if (!Utils.validateTreeSize(totalNodes)) {
+                    this.$container.html(`<div class="no-message">JSON structure is too large (${totalNodes} nodes). Please use a smaller dataset.</div>`);
+                    return;
+                }
+                
+                TreeRenderer.renderJsonTree(tree, this.$container);
+                this.treeController.bindEvents();
+                this.treeController.restoreSelections();
+                
+            } catch (e) {
+                console.error('Error building tree:', e);
+                this.$container.html('<div class="no-message">Error building tree: ' + e.message + '</div>');
+            }
+        },
+        
+        loadFromLatestMessage: function() {
+            const self = this;
+            const property = this.node.property || 'payload';
+            Utils.fetchLatestMsg(this.node.id, property, function(latestMsg) {
+                if (!latestMsg) {
+                    self.$container.html('<div class="no-message">No message received yet. Send a message to this node to preview the JSON structure.</div>');
+                    return;
+                }
+                self.buildTreeFromData(latestMsg);
+            });
+        }
+    };
+    
+    // ===== MAIN NODE REGISTRATION =====
+    RED.nodes.registerType('json-filter-advanced', {
+        category: 'function',
+        color: '#a6bbcf',
+        defaults: {
+            name: { value: '' },
+            mode: { value: 'object', validate: function(v) { return ['object', 'flattened', 'array'].indexOf(v) !== -1; } },
+            selectedPaths: { value: '[]', validate: function(v) { 
+                try { 
+                    var parsed = JSON.parse(v); 
+                    return Array.isArray(parsed); 
+                } catch(e) { 
+                    return false; 
+                } 
+            }},
+            sourceType: { value: 'message', validate: function(v) { return ['message', 'template'].indexOf(v) !== -1; } },
+            templateData: { value: '' },
+            property: { value: 'payload' },
+            propertyType: { value: 'msg' }
+        },
+        inputs: 1,
+        outputs: 1,
+        icon: 'icon.png',
+        label: function() { return this.name || 'JSON Filter Advanced'; },
+        
+        oneditprepare: function() {
+            console.log('oneditprepare called, this:', this);
+            console.log('buildUI method exists:', typeof this.buildUI);
+            
+            const node = this;
+            let updateTimeout;
+            
+            // Cleanup function
+            function cleanup() {
+                if (updateTimeout) {
+                    clearTimeout(updateTimeout);
+                }
+                $(document).off('change', '.tree-checkbox');
+                $(document).off('click', '.tree-toggle');
+            }
+            
+            node._editorCleanup = cleanup;
+            
+            // Initialize selected paths
+            if (typeof node.selectedPaths === 'string') {
+                try {
+                    node.selectedPaths = JSON.parse(node.selectedPaths);
+                } catch (e) {
+                    console.log('Failed to parse selectedPaths string, defaulting to empty array');
+                    node.selectedPaths = [];
+                }
+            } else if (!Array.isArray(node.selectedPaths)) {
+                node.selectedPaths = [];
+            }
+            
+            // Initialize property typedInput
+            $('#node-input-property').typedInput({
+                type: 'msg',
+                types: ['msg'],
+                typeField: '#node-input-property-type'
+            });
+            
+            // Listen for property changes to refresh tree
+            $('#node-input-property').on('change', function() {
+                node.property = $(this).val();
+                // Refresh tree if we're in message mode
+                setTimeout(function() {
+                    const $sourceType = $('#json-source-type');
+                    if ($sourceType.val() === 'message') {
+                        const $treeContainer = $('#json-tree-container');
+                        if ($treeContainer.length > 0) {
+                            // Find the data manager and reload
+                            const dataManager = $treeContainer.data('dataManager');
+                            if (dataManager) {
+                                dataManager.loadFromLatestMessage();
+                            }
+                        }
+                    }
+                }, 100);
+            });
+            
+            // Build UI
+            const $ui = $('#json-filter-advanced-ui');
+            if ($ui.length === 0) {
+                const $form = $("#dialog-form, form.form-horizontal").first();
+                $form.append('<div style="color:red;font-weight:bold;">ERROR: #json-filter-advanced-ui not found</div>');
+                return;
+            }
+            
+            // Inline buildUI function
+            function buildUI($ui, node) {
+                $ui.empty();
+                
+                // Output mode selector
+                $ui.append('<div style="margin-bottom:10px;"><label for="output-mode">Output mode: </label><select id="output-mode"><option value="object">Object</option><option value="flattened">Flattened</option><option value="array">Array</option></select></div>');
+                
+                // JSON source tabs
+                $ui.append(`
+                    <div style="margin-bottom:10px;">
+                        <div class="json-source-tabs">
+                            <button type="button" class="json-source-tab active" data-tab="message">Use Latest Message</button>
+                            <button type="button" class="json-source-tab" data-tab="template">Use JSON Template</button>
+                        </div>
+                        <div class="json-source-content">
+                            <div id="json-source-message" class="json-source-panel active">
+                                <p style="margin:5px 0; font-size:12px; color:#666;">Send a message to this node to populate the tree view.</p>
+                            </div>
+                            <div id="json-source-template" class="json-source-panel">
+                                <label for="json-template-input">JSON Template:</label>
+                                <textarea id="json-template-input" rows="8" style="width:100%; font-family:monospace; font-size:12px;" placeholder="Paste your JSON here..."></textarea>
+                                <button type="button" id="parse-template-btn" style="margin-top:5px;">Parse JSON</button>
+                            </div>
+                        </div>
+                    </div>
+                `);
+                
+                // Tree container and hidden inputs
+                $ui.append('<div id="json-tree-container" class="variable-tree-container"></div>');
+                $ui.append('<input type="hidden" id="selected-paths">');
+                $ui.append('<input type="hidden" id="json-source-type" value="message">');
+                $ui.append('<input type="hidden" id="json-template-data">');
+                
+                // Initialize components
+                const $mode = $('#output-mode');
+                const $selected = $('#selected-paths');
+                const $treeContainer = $('#json-tree-container');
+                const $sourceType = $('#json-source-type');
+                const $templateData = $('#json-template-data');
+                const $templateInput = $('#json-template-input');
+                
+                // Set up mode selector
+                $mode.val(node.mode || 'object');
+                $mode.on('change', function() {
+                    node.mode = $(this).val();
+                });
+                
+                // Initialize controllers
+                const treeController = Object.create(TreeController);
+                treeController.init(node, $treeContainer, $selected);
+                
+                const dataManager = Object.create(DataManager);
+                dataManager.init(node, $treeContainer, treeController);
+                
+                // Store data manager reference for property change handler
+                $treeContainer.data('dataManager', dataManager);
+                
+                // Set up event handlers
+                setupEventHandlers(node, $treeContainer, $sourceType, $templateData, $templateInput, dataManager);
+                
+                // Restore state and load initial data
+                restoreState(node, $sourceType, $templateData, $templateInput, dataManager);
+            }
+            
+            // Inline setupEventHandlers function
+            function setupEventHandlers(node, $treeContainer, $sourceType, $templateData, $templateInput, dataManager) {
+                // Tab switching
+                $('.json-source-tab').on('click', function() {
+                    const tabType = $(this).data('tab');
+                    $('.json-source-tab').removeClass('active');
+                    $('.json-source-panel').removeClass('active');
+                    $(this).addClass('active');
+                    $('#json-source-' + tabType).addClass('active');
+                    $sourceType.val(tabType);
+                    
+                    $treeContainer.empty();
+                    
+                    if (tabType === 'message') {
+                        dataManager.loadFromLatestMessage();
+                    } else {
+                        $templateInput.focus();
+                    }
+                });
+                
+                // Template parsing
+                $('#parse-template-btn').on('click', function() {
+                    const templateText = $templateInput.val().trim();
+                    if (!templateText) {
+                        RED.notify('Please enter some JSON to parse.', 'warning');
+                        return;
+                    }
+                    
+                    if (!Utils.validateJsonSize(templateText)) {
+                        RED.notify('JSON template is too large. Please use a smaller template.', 'error');
+                        return;
+                    }
+                    
+                    try {
+                        const templateData = JSON.parse(templateText);
+                        
+                        if (templateData === null || typeof templateData !== 'object') {
+                            RED.notify('JSON template must be an object or array.', 'warning');
+                            return;
+                        }
+                        
+                        $templateData.val(JSON.stringify(templateData));
+                        dataManager.buildTreeFromData(templateData);
+                        RED.notify('JSON template parsed successfully.', 'success');
+                    } catch (e) {
+                        RED.notify('Invalid JSON: ' + e.message, 'error');
+                    }
+                });
+                
+                // Keyboard shortcuts
+                $templateInput.on('keydown', function(e) {
+                    if (e.ctrlKey && e.keyCode === 13) {
+                        $('#parse-template-btn').click();
+                    }
+                });
+            }
+            
+            // Inline restoreState function
+            function restoreState(node, $sourceType, $templateData, $templateInput, dataManager) {
+                // Restore source type and template data
+                $sourceType.val(node.sourceType || 'message');
+                if (node.templateData) {
+                    try {
+                        const templateData = JSON.parse(node.templateData);
+                        $templateData.val(node.templateData);
+                        $templateInput.val(JSON.stringify(templateData, null, 2));
+                    } catch (e) {
+                        console.log('Failed to parse template data');
+                    }
+                }
+                
+                // Set active tab
+                const activeTab = node.sourceType || 'message';
+                $('.json-source-tab').removeClass('active');
+                $('.json-source-panel').removeClass('active');
+                $('[data-tab="' + activeTab + '"]').addClass('active');
+                $('#json-source-' + activeTab).addClass('active');
+                
+                // Load initial data
+                if (activeTab === 'template' && node.templateData) {
+                    try {
+                        const templateData = JSON.parse(node.templateData);
+                        dataManager.buildTreeFromData(templateData);
+                    } catch (e) {
+                        console.log('Failed to load template data');
+                        dataManager.loadFromLatestMessage();
+                    }
+                } else {
+                    dataManager.loadFromLatestMessage();
+                }
+            }
+            
+            // Call buildUI
+            buildUI($ui, node);
+        },
+        
+        oneditsave: function() {
+            // Cleanup event handlers
+            if (this._editorCleanup) {
+                this._editorCleanup();
+                delete this._editorCleanup;
+            }
+            
+            // Validate and save configuration
+            var mode = $('#output-mode').val() || 'object';
+            var selectedPaths = $('#selected-paths').val() || '[]';
+            var sourceType = $('#json-source-type').val() || 'message';
+            var templateData = $('#json-template-data').val() || '';
+            
+            // Validate mode
+            if (['object', 'flattened', 'array'].indexOf(mode) === -1) {
+                RED.notify('Invalid output mode selected', 'error');
+                return false;
+            }
+            
+            // Validate selectedPaths
+            try {
+                var parsedPaths = JSON.parse(selectedPaths);
+                if (!Array.isArray(parsedPaths)) {
+                    throw new Error('Selected paths must be an array');
+                }
+            } catch (e) {
+                RED.notify('Invalid selected paths configuration', 'error');
+                return false;
+            }
+            
+            // Validate sourceType
+            if (['message', 'template'].indexOf(sourceType) === -1) {
+                RED.notify('Invalid source type selected', 'error');
+                return false;
+            }
+            
+            // Validate templateData if provided
+            if (templateData && sourceType === 'template') {
+                try {
+                    JSON.parse(templateData);
+                } catch (e) {
+                    RED.notify('Invalid template data: ' + e.message, 'error');
+                    return false;
+                }
+            }
+            
+            // Save validated configuration
+            this.mode = mode;
+            this.selectedPaths = selectedPaths;
+            this.sourceType = sourceType;
+            this.templateData = templateData;
+            
+            console.log('oneditsave - mode:', this.mode, 'selectedPaths:', this.selectedPaths, 'sourceType:', this.sourceType);
+            return true;
+        },
+        oneditcancel: function() {
+            // Cleanup event handlers on cancel
+            if (this._editorCleanup) {
+                this._editorCleanup();
+                delete this._editorCleanup;
+            }
+        }
+    });
+})();
+</script>
+
+<script type="text/html" data-help-name="json-filter-advanced">
+<p>An advanced JSON filtering node with interactive tree view and flexible output options.</p>
+
+<h3>Configuration</h3>
+<dl class="message-properties">
+    <dt>Property <span class="property-type">string</span></dt>
+    <dd>The message property to filter (default: <code>payload</code>). Supports nested properties like <code>data.items</code>.</dd>
+    
+    <dt>Output Mode <span class="property-type">string</span></dt>
+    <dd>The format of the output:
+        <ul>
+            <li><strong>Object</strong> - Preserves the original nested structure</li>
+            <li><strong>Flattened</strong> - Returns key-value pairs with dot-notation keys</li>
+            <li><strong>Array</strong> - Returns an array of selected leaf values</li>
+        </ul>
+    </dd>
+    
+    <dt>Data Source <span class="property-type">string</span></dt>
+    <dd>Choose between:
+        <ul>
+            <li><strong>Use Latest Message</strong> - Work with live data from the flow</li>
+            <li><strong>Use JSON Template</strong> - Define a test JSON structure</li>
+        </ul>
+    </dd>
+</dl>
+
+<h3>Usage</h3>
+<p>This node provides an interactive tree view for selecting specific fields from JSON data. The tree shows the structure of your JSON and allows you to:</p>
+<ul>
+    <li>Expand/collapse branches to navigate the structure</li>
+    <li>Select individual fields or entire branches</li>
+    <li>Use control buttons for bulk operations (Select All, Select None, etc.)</li>
+    <li>Preview the structure with live message data</li>
+</ul>
+
+<h3>Input</h3>
+<dl class="message-properties">
+    <dt>payload <span class="property-type">object | array</span></dt>
+    <dd>The JSON data to filter. Can be any valid JSON object or array.</dd>
+</dl>
+
+<h3>Output</h3>
+<dl class="message-properties">
+    <dt>payload <span class="property-type">object | array</span></dt>
+    <dd>The filtered JSON data in the format specified by the output mode.</dd>
+</dl>
+
+<h3>Examples</h3>
+<h4>Object Mode</h4>
+<p>Input:</p>
+<pre>{
+  "user": {
+    "name": "John",
+    "email": "john@example.com",
+    "address": {
+      "city": "New York",
+      "zip": "10001"
+    }
+  }
+}</pre>
+<p>Selected: <code>user.name</code>, <code>user.address.city</code></p>
+<p>Output:</p>
+<pre>{
+  "user": {
+    "name": "John",
+    "address": {
+      "city": "New York"
+    }
+  }
+}</pre>
+
+<h4>Flattened Mode</h4>
+<p>Same input and selection as above.</p>
+<p>Output:</p>
+<pre>{
+  "user.name": "John",
+  "user.address.city": "New York"
+}</pre>
+
+<h4>Array Mode</h4>
+<p>Same input and selection as above.</p>
+<p>Output:</p>
+<pre>["John", "New York"]</pre>
+
+<h3>Features</h3>
+<ul>
+    <li><strong>Interactive Tree View</strong> - Visual navigation of JSON structure</li>
+    <li><strong>Live Preview</strong> - See your data structure in real-time</li>
+    <li><strong>Template Mode</strong> - Test with predefined JSON structures</li>
+    <li><strong>Flexible Property Selection</strong> - Work with any message property</li>
+    <li><strong>Smart Selection</strong> - Parent selection includes children</li>
+    <li><strong>Performance Optimized</strong> - Handles large datasets efficiently</li>
+    <li><strong>Error Handling</strong> - Graceful handling of invalid data</li>
+</ul>
+
+<h3>Performance Notes</h3>
+<p>The node has built-in limits to ensure good performance:</p>
+<ul>
+    <li>Maximum JSON size: 1MB</li>
+    <li>Maximum tree nodes: 1000</li>
+    <li>Debounced updates for responsive UI</li>
+</ul>
+
+<h3>Error Handling</h3>
+<p>The node handles various error conditions gracefully:</p>
+<ul>
+    <li>Invalid JSON structures are caught and reported</li>
+    <li>Missing properties default to empty results</li>
+    <li>Size limits prevent memory issues</li>
+    <li>User-friendly error messages in the debug output</li>
+</ul>
+</script>
+
+<script type="text/html" data-template-name="json-filter-advanced">
+    <div class="form-row">
+        <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+    <div class="form-row">
+        <label for="node-input-property"><i class="fa fa-ellipsis-h"></i> Property</label>
+        <input type="text" id="node-input-property" placeholder="payload">
+        <input type="hidden" id="node-input-property-type">
+    </div>
+    <div class="form-row">
+        <div id="json-filter-advanced-ui"></div>
+    </div>
+</script>
+
+<style>
+.variable-tree-container {
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    padding: 0;
+    max-height: 600px;
+    overflow: auto;
+    background: #fff;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.tree-controls {
+    background: #f8f9fa;
+    padding: 8px 12px;
+    border-bottom: 1px solid #e9ecef;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+}
+
+.tree-controls-left {
+    display: flex;
+    gap: 6px;
+    flex: 1;
+}
+
+.tree-controls-right {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    font-size: 11px;
+    color: #6c757d;
+}
+
+.tree-btn {
+    font-size: 11px !important;
+    padding: 4px 8px !important;
+    margin: 0 !important;
+    border-radius: 4px !important;
+    border: 1px solid #ddd !important;
+    background: #fff !important;
+    color: #495057 !important;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.tree-btn:hover {
+    background: #e9ecef !important;
+    border-color: #adb5bd !important;
+}
+
+.tree-btn i {
+    font-size: 10px;
+}
+
+.variable-tree {
+    font-size: 13px;
+    line-height: 1.2;
+    overflow-y: auto;
+    max-height: 450px;
+    padding: 4px 0;
+}
+
+.tree-node {
+    position: relative;
+    margin: 0;
+    user-select: none;
+}
+
+.tree-node-content {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+    padding: 1px 8px 1px 0;
+    min-height: 20px;
+    position: relative;
+}
+
+.tree-node-content:hover {
+    background-color: #f8f9fa;
+}
+
+.tree-node-content.selected {
+    background-color: #e3f2fd;
+}
+
+.tree-indent {
+    position: relative;
+    width: 16px;
+    height: 20px;
+    display: inline-block;
+    flex-shrink: 0;
+}
+
+.tree-indent::before {
+    content: '';
+    position: absolute;
+    left: 7px;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: #dee2e6;
+}
+
+.tree-indent::after {
+    content: '';
+    position: absolute;
+    left: 7px;
+    top: 9px;
+    width: 8px;
+    height: 1px;
+    background: #dee2e6;
+}
+
+.tree-indent.last::before {
+    height: 10px;
+}
+
+.tree-indent.no-line::before,
+.tree-indent.no-line::after {
+    display: none;
+}
+
+.tree-toggle {
+    width: 16px;
+    height: 16px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    border-radius: 3px;
+    margin-right: 2px;
+    flex-shrink: 0;
+    font-size: 11px;
+    color: #6c757d;
+}
+
+.tree-toggle:hover {
+    background-color: #e9ecef;
+    color: #495057;
+}
+
+.tree-toggle.empty {
+    width: 16px;
+    cursor: default;
+}
+
+.tree-checkbox {
+    width: 14px !important;
+    height: 14px !important;
+    margin: 0 !important;
+    flex-shrink: 0;
+    cursor: pointer;
+}
+
+.tree-label {
+    cursor: pointer;
+    margin: 0;
+    font-weight: normal;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex: 1;
+    min-width: 0;
+}
+
+.tree-label-text {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.branch-label .tree-label-text {
+    font-weight: 600;
+    color: #2c3e50;
+}
+
+.variable-label .tree-label-text {
+    color: #495057;
+}
+
+.variable-info-inline {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: 12px;
+    flex-shrink: 0;
+}
+
+.variable-type {
+    font-size: 9px;
+    color: #6c757d;
+    background: #f8f9fa;
+    padding: 1px 4px;
+    border-radius: 2px;
+    border: 1px solid #e9ecef;
+    font-family: 'Monaco', 'Menlo', monospace;
+}
+
+.tree-children {
+    overflow: hidden;
+    transition: height 0.2s ease;
+}
+
+.tree-checkbox:checked + .tree-label {
+    background-color: #e3f2fd;
+    border-radius: 3px;
+    padding: 1px 4px;
+}
+
+.tree-checkbox:checked + .tree-label .tree-label-text {
+    font-weight: 600;
+    color: #1976d2;
+}
+
+.tree-checkbox:checked.leaf-checkbox + .tree-label .tree-label-text {
+    color: #d32f2f;
+    font-weight: 700;
+}
+
+.tree-stats {
+    font-size: 11px;
+    color: #6c757d;
+}
+
+.no-message {
+    color: #999;
+    font-style: italic;
+    text-align: center;
+    padding: 20px;
+    background: #f5f5f5;
+    border-radius: 3px;
+    margin: 8px 0;
+}
+
+/* Output mode selector styling */
+#json-filter-advanced-ui {
+    background: #f9f9fa;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 10px;
+    margin: 8px 0;
+}
+
+#json-filter-advanced-ui label {
+    color: #666;
+    font-weight: 500;
+    margin-right: 8px;
+}
+
+#json-filter-advanced-ui select {
+    background: white;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    padding: 4px 8px;
+    font-size: 13px;
+    color: #333;
+    min-width: 120px;
+}
+
+#json-filter-advanced-ui select:focus {
+    outline: none;
+    border-color: #4a90e2;
+    box-shadow: 0 0 0 2px rgba(74, 144, 226, 0.2);
+}
+
+/* JSON Source Tabs */
+.json-source-tabs {
+    display: flex;
+    margin-bottom: 8px;
+    border-bottom: 1px solid #ddd;
+}
+
+.json-source-tab {
+    background: #f8f9fa;
+    border: 1px solid #ddd;
+    border-bottom: none;
+    padding: 8px 16px;
+    cursor: pointer;
+    font-size: 13px;
+    color: #666;
+    border-radius: 4px 4px 0 0;
+    margin-right: 2px;
+}
+
+.json-source-tab.active {
+    background: white;
+    color: #333;
+    border-bottom: 1px solid white;
+    position: relative;
+    z-index: 1;
+}
+
+.json-source-tab:hover {
+    background: #e9ecef;
+}
+
+.json-source-tab.active:hover {
+    background: white;
+}
+
+.json-source-content {
+    background: white;
+    border: 1px solid #ddd;
+    border-top: none;
+    padding: 10px;
+    border-radius: 0 0 4px 4px;
+}
+
+.json-source-panel {
+    display: none;
+}
+
+.json-source-panel.active {
+    display: block;
+}
+
+#json-template-input {
+    resize: vertical;
+    min-height: 100px;
+}
+
+#parse-template-btn {
+    background: #4a90e2;
+    color: white;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+}
+
+#parse-template-btn:hover {
+    background: #357abd;
+}
+</style>

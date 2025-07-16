@@ -1,0 +1,365 @@
+[
+    {
+        "id": "example-flow-1",
+        "type": "tab",
+        "label": "JSON Filter Advanced - Examples",
+        "disabled": false,
+        "info": "",
+        "env": []
+    },
+    {
+        "id": "basic-example",
+        "type": "inject",
+        "z": "example-flow-1",
+        "name": "Basic User Data",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "{\"user\":{\"name\":\"John Doe\",\"email\":\"john@example.com\",\"address\":{\"street\":\"123 Main St\",\"city\":\"New York\",\"zip\":\"10001\"}},\"timestamp\":\"2024-01-01T00:00:00Z\"}",
+        "payloadType": "json",
+        "x": 150,
+        "y": 100,
+        "wires": [
+            [
+                "json-filter-1"
+            ]
+        ]
+    },
+    {
+        "id": "json-filter-1",
+        "type": "json-filter-advanced",
+        "z": "example-flow-1",
+        "name": "Filter User Info",
+        "mode": "object",
+        "selectedPaths": "[\"user.address.city\",\"user.name\"]",
+        "sourceType": "template",
+        "templateData": "{\"user\":{\"name\":\"John Doe\",\"email\":\"john@example.com\",\"address\":{\"street\":\"123 Main St\",\"city\":\"New York\",\"zip\":\"10001\"}},\"timestamp\":\"2024-01-01T00:00:00Z\"}",
+        "property": "payload",
+        "propertyType": "msg",
+        "x": 350,
+        "y": 100,
+        "wires": [
+            [
+                "debug-1"
+            ]
+        ]
+    },
+    {
+        "id": "debug-1",
+        "type": "debug",
+        "z": "example-flow-1",
+        "name": "Filtered Output",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 550,
+        "y": 100,
+        "wires": []
+    },
+    {
+        "id": "array-example",
+        "type": "inject",
+        "z": "example-flow-1",
+        "name": "Product Array",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "{\"products\":[{\"id\":1,\"name\":\"Laptop\",\"price\":999.99,\"category\":\"Electronics\"},{\"id\":2,\"name\":\"Mouse\",\"price\":29.99,\"category\":\"Electronics\"}]}",
+        "payloadType": "json",
+        "x": 150,
+        "y": 200,
+        "wires": [
+            [
+                "json-filter-2"
+            ]
+        ]
+    },
+    {
+        "id": "json-filter-2",
+        "type": "json-filter-advanced",
+        "z": "example-flow-1",
+        "name": "Extract Names & Prices",
+        "mode": "flattened",
+        "selectedPaths": "[\"products.0.name\",\"products.0.price\",\"products.1.name\",\"products.1.price\"]",
+        "sourceType": "template",
+        "templateData": "{\"products\":[{\"id\":1,\"name\":\"Laptop\",\"price\":999.99,\"category\":\"Electronics\"},{\"id\":2,\"name\":\"Mouse\",\"price\":29.99,\"category\":\"Electronics\"}]}",
+        "property": "payload",
+        "propertyType": "msg",
+        "x": 380,
+        "y": 200,
+        "wires": [
+            [
+                "debug-2"
+            ]
+        ]
+    },
+    {
+        "id": "debug-2",
+        "type": "debug",
+        "z": "example-flow-1",
+        "name": "Flattened Output",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 590,
+        "y": 200,
+        "wires": []
+    },
+    {
+        "id": "api-example",
+        "type": "inject",
+        "z": "example-flow-1",
+        "name": "API Response",
+        "props": [
+            {
+                "p": "payload",
+                "v": "{\"status\":\"success\",\"data\":{\"users\":[{\"id\":1,\"profile\":{\"firstName\":\"Alice\",\"lastName\":\"Smith\",\"email\":\"alice@example.com\",\"preferences\":{\"theme\":\"dark\",\"notifications\":true}}},{\"id\":2,\"profile\":{\"firstName\":\"Bob\",\"lastName\":\"Johnson\",\"email\":\"bob@example.com\",\"preferences\":{\"theme\":\"light\",\"notifications\":false}}}]},\"metadata\":{\"page\":1,\"total\":2}}",
+                "vt": "json"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "x": 150,
+        "y": 300,
+        "wires": [
+            [
+                "json-filter-3"
+            ]
+        ]
+    },
+    {
+        "id": "json-filter-3",
+        "type": "json-filter-advanced",
+        "z": "example-flow-1",
+        "name": "Extract User Profiles",
+        "mode": "array",
+        "selectedPaths": "[\"data.users.0.profile.firstName\",\"data.users.0.profile.lastName\",\"data.users.0.profile.preferences.theme\",\"data.users.1.profile.firstName\",\"data.users.1.profile.lastName\",\"data.users.1.profile.preferences.theme\",\"metadata.total\",\"status\"]",
+        "sourceType": "template",
+        "templateData": "{\"status\":\"success\",\"data\":{\"users\":[{\"id\":1,\"profile\":{\"firstName\":\"Alice\",\"lastName\":\"Smith\",\"email\":\"alice@example.com\",\"preferences\":{\"theme\":\"dark\",\"notifications\":true}}},{\"id\":2,\"profile\":{\"firstName\":\"Bob\",\"lastName\":\"Johnson\",\"email\":\"bob@example.com\",\"preferences\":{\"theme\":\"light\",\"notifications\":false}}}]},\"metadata\":{\"page\":1,\"total\":2}}",
+        "property": "payload",
+        "propertyType": "msg",
+        "x": 380,
+        "y": 300,
+        "wires": [
+            [
+                "debug-3"
+            ]
+        ]
+    },
+    {
+        "id": "debug-3",
+        "type": "debug",
+        "z": "example-flow-1",
+        "name": "Array Output",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 570,
+        "y": 300,
+        "wires": []
+    },
+    {
+        "id": "nested-example",
+        "type": "inject",
+        "z": "example-flow-1",
+        "name": "Nested Data",
+        "props": [
+            {
+                "p": "data",
+                "v": "{\"company\":{\"name\":\"Tech Corp\",\"departments\":[{\"name\":\"Engineering\",\"employees\":[{\"name\":\"John\",\"role\":\"Developer\",\"skills\":[\"JavaScript\",\"Python\"]},{\"name\":\"Jane\",\"role\":\"Designer\",\"skills\":[\"UI/UX\",\"Figma\"]}]},{\"name\":\"Marketing\",\"employees\":[{\"name\":\"Mike\",\"role\":\"Manager\",\"skills\":[\"Strategy\",\"Analytics\"]}]}]}}",
+                "vt": "json"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "x": 150,
+        "y": 400,
+        "wires": [
+            [
+                "json-filter-4"
+            ]
+        ]
+    },
+    {
+        "id": "json-filter-4",
+        "type": "json-filter-advanced",
+        "z": "example-flow-1",
+        "name": "Employee Skills",
+        "mode": "object",
+        "selectedPaths": "[\"company.departments.0.employees.0.name\",\"company.departments.0.employees.0.skills.0\",\"company.departments.0.employees.1.name\",\"company.departments.0.employees.1.skills.1\",\"company.departments.1.employees.0.name\",\"company.departments.1.employees.0.skills.0\"]",
+        "sourceType": "template",
+        "templateData": "{\"company\":{\"name\":\"Tech Corp\",\"departments\":[{\"name\":\"Engineering\",\"employees\":[{\"name\":\"John\",\"role\":\"Developer\",\"skills\":[\"JavaScript\",\"Python\"]},{\"name\":\"Jane\",\"role\":\"Designer\",\"skills\":[\"UI/UX\",\"Figma\"]}]},{\"name\":\"Marketing\",\"employees\":[{\"name\":\"Mike\",\"role\":\"Manager\",\"skills\":[\"Strategy\",\"Analytics\"]}]}]}}",
+        "property": "data",
+        "propertyType": "msg",
+        "x": 350,
+        "y": 400,
+        "wires": [
+            [
+                "debug-4"
+            ]
+        ]
+    },
+    {
+        "id": "debug-4",
+        "type": "debug",
+        "z": "example-flow-1",
+        "name": "Nested Property Output",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 580,
+        "y": 400,
+        "wires": []
+    },
+    {
+        "id": "template-example",
+        "type": "inject",
+        "z": "example-flow-1",
+        "name": "Trigger Template Test",
+        "props": [
+            {
+                "p": "payload",
+                "v": "{}",
+                "vt": "json"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "x": 170,
+        "y": 500,
+        "wires": [
+            [
+                "json-filter-5"
+            ]
+        ]
+    },
+    {
+        "id": "json-filter-5",
+        "type": "json-filter-advanced",
+        "z": "example-flow-1",
+        "name": "Template Demo",
+        "mode": "flattened",
+        "selectedPaths": "[\"order.customer.name\",\"order.items.product\",\"order.items.price\"]",
+        "sourceType": "template",
+        "templateData": "{\"order\":{\"id\":\"ORD-001\",\"customer\":{\"name\":\"Sarah Wilson\",\"email\":\"sarah@example.com\"},\"items\":[{\"product\":\"Widget A\",\"price\":25.99,\"quantity\":2},{\"product\":\"Widget B\",\"price\":15.50,\"quantity\":1}],\"total\":67.48}}",
+        "property": "payload",
+        "propertyType": "msg",
+        "x": 390,
+        "y": 500,
+        "wires": [
+            [
+                "debug-5"
+            ]
+        ]
+    },
+    {
+        "id": "debug-5",
+        "type": "debug",
+        "z": "example-flow-1",
+        "name": "Template Output",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 600,
+        "y": 500,
+        "wires": []
+    },
+    {
+        "id": "comment-1",
+        "type": "comment",
+        "z": "example-flow-1",
+        "name": "Example 1: Basic filtering with Object output",
+        "info": "This example shows how to filter a simple user object, extracting only the name, email, and city fields.",
+        "x": 250,
+        "y": 60,
+        "wires": []
+    },
+    {
+        "id": "comment-2",
+        "type": "comment",
+        "z": "example-flow-1",
+        "name": "Example 2: Array data with Flattened output",
+        "info": "This example demonstrates filtering an array of products and outputting the result in flattened format.",
+        "x": 260,
+        "y": 160,
+        "wires": []
+    },
+    {
+        "id": "comment-3",
+        "type": "comment",
+        "z": "example-flow-1",
+        "name": "Example 3: Complex API response with Array output",
+        "info": "This example shows how to extract specific fields from a complex API response and output them as an array.",
+        "x": 270,
+        "y": 260,
+        "wires": []
+    },
+    {
+        "id": "comment-4",
+        "type": "comment",
+        "z": "example-flow-1",
+        "name": "Example 4: Different property source (msg.data)",
+        "info": "This example shows how to use a different message property as the data source instead of msg.payload.",
+        "x": 280,
+        "y": 360,
+        "wires": []
+    },
+    {
+        "id": "comment-5",
+        "type": "comment",
+        "z": "example-flow-1",
+        "name": "Example 5: Template mode for testing",
+        "info": "This example demonstrates using template mode to test filtering logic with predefined JSON data.",
+        "x": 250,
+        "y": 460,
+        "wires": []
+    }
+]
